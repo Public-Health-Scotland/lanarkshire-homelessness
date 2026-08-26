@@ -1,0 +1,203 @@
+---
+title: "Exploratory analysis of HL1 applicants"
+format: docx
+execute:
+  echo: false
+  warning: false
+---
+
+```{r}
+## Note! Do not use 'render' button as this will render locally
+## Copy this into the terminal
+# rmarkdown::render("Exploratory Analysis.qmd", output_dir = "/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Output/")
+```
+
+
+```{r setup}
+pacman::p_load(
+  arrow,
+  tidyverse)
+
+filename <- list.files("/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Data/Linked Data/", full.names = TRUE) |>
+    (\(x) x[which.max(file.info(x)$mtime)])()
+
+matched <- read_parquet(filename)
+
+message("Using ", basename(filename))
+```
+
+## Demographic and service use profiles
+
+The Source team in PHS produce two classifications of individuals based on their health, demographics, and healthcare usage. The 'Service Use' profile reflects where the highest proportion of health cost was spent in the financial year. The 'Population Segments' profile reflects the health needs and demographic characteristics, based on diagnosis codes, long-term conditions, and other health information. The Population Segments are ordered by estimated resource use, with people assigned to the highest resource-use profile that they meet the criteria for.
+
+| Cohort | High-level description | Detailed definition |
+|------------------------|------------------------|------------------------|
+| End of Life | People who died during the financial year. | People who died, excluding deaths due to accidents. Accident deaths are defined as any of the ten death diagnoses containing ICD-10 codes V01-Y84, excluding falls (W00-W19). |
+| Frailty | Older adults with evidence of frailty through healthcare or social care activity. | People admitted to Geriatric Long Stay (significant facility 1E) or inpatient Geriatric Medicine (specialty AB); had one of the following diagnoses: F00-F03, F05, G20, G21, G22X, I61, I63, I64, R268, W00-W19; had a Care Plan package with a frailty flag; or were aged 65+ and living in a care home or receiving home care without Learning Disability or Physical Disability flags in their Care Plan record. |
+| High Complex Conditions | People with severe long-term conditions or significant disability-related support needs. | Any person with one of the following SPARRA LTC flags: Alzheimer's, Cancer, Dementia, Heart Failure, Renal Failure, or Chronic Liver Disease. Also includes people under 65 in a care home or receiving home care who do not have Learning Disability, Physical Disability, Drug and Alcohol, or Mental Health flags. Learning Disability is identified through Care Plan flags or admissions to a Learning Disability specialty. Physical Disability is identified through Care Plan flags. |
+| Maternity and Healthy Newborns | Women who were pregnant or gave birth during the year. | Women with at least one SMR02 record. |
+| Mental Health | People with a mental health condition. | People with at least one SMR04 record; any of the following ICD-10 diagnoses: F06.7, F07.0, F07.2, F07.8, F07.9, or F20-F39; or a Mental Health flag in a Care Plan record. |
+| Substance Misuse | People affected by drug or alcohol misuse. | People with any diagnosis listed in the Drug and Alcohol code list (Appendix 1), or with a Drug and Alcohol flag in a Care Plan record. |
+| Medium Complex Conditions | People with selected moderate chronic conditions. | Any person with one of the following LTC flags: CVD, COPD, CHD, Parkinson's disease, or Multiple Sclerosis (MS). |
+| Low Complex Conditions | People with selected lower-intensity chronic conditions. | Any person with one of the following LTC flags: Epilepsy, Asthma, Arthritis, Diabetes, or Atrial Fibrillation. |
+| Adult (18+) Major Conditions | Adults with evidence of significant healthcare needs. | Adults aged 18+ who had either £500 or more in community prescribing costs or at least one acute inpatient episode (SMR01). |
+| Child and Youth (0-17) Major Conditions | Children and young people with evidence of significant healthcare needs. | Children aged 1-17 who had either £500 or more in community prescribing costs or at least one acute inpatient episode (SMR01). |
+| Healthy and Low Service User | People with relatively low use of health and care services who do not fit other cohorts. | People with at least one SMR record who were low users of NHS services and were not included in any other cohort. May also have District Nursing or other Social Care records if they do not meet the criteria for another cohort. |
+
+### Population Segments
+
+```{r}
+matched <- matched |>
+  mutate(
+    demographic_cohort = factor(
+      demographic_cohort,
+      c(
+        "End of Life",
+        "Frailty",
+        "High Complex Conditions",
+        "Maternity and Healthy Newborns",
+        "Mental Health",
+        "Substance Misuse",
+        "Medium Complex Conditions",
+        "Low Complex Conditions",
+        "Adult Major Conditions",
+        "Child Major Conditions",
+        "Healthy and Low User"
+      )
+    ),
+    service_use_cohort = fct_infreq(factor(service_use_cohort)),
+    age_group = case_when(
+      age >= 15 & age <25 ~ "15-24",
+      age >= 25 & age <45 ~ "25-44",
+      age >= 45 & age <65 ~ "45-64",
+      age >= 65 ~ "65+",
+      .default = NA
+    )
+  )
+```
+
+The 'healthy and low service use' population segment is the largest, both for HL1 applicants and the general population, across both South and North Lanarkshire. However, fewer HL1 applicants are 'healthy and low service user' than the general population, with the disparity being particularly pronounced in North Lanarkshire. Of the remaining population segments, we see HL1 applicants are disproportionately represented in the Adult Major Conditions, Maternity, Mental Health and Substance Use profiles. Fewer HL1 applicants are in the 'complex conditions' segments than the general population, likely because these tend to be chronic conditions more prevalent in old age. 
+
+```{r}
+matched |> filter(lca_group != "Pan Lanarkshire") |>
+  group_by(lca_group, cohort) |>
+  summarise(healthy = mean(demographic_cohort == "Healthy and Low User")) |>
+  ggplot(aes(x=cohort, y=healthy, fill = cohort)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants")) +
+  scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
+                      palette = phsstyles::phs_colour_values) +
+  coord_flip() +
+  facet_wrap(~lca_group) +
+  labs(y="% of people",
+       x= NULL,
+       fill = NULL,
+       title = "Population segements",
+       subtitle = "'Healthy and low service user' Population Segement:") +
+  phsstyles::theme_phs()
+  
+```
+
+```{r}
+matched |> filter(lca_group != "Pan Lanarkshire") |>
+  count(lca_group, cohort, demographic_cohort) |>
+  mutate(
+    total = sum(n),
+    .by=c(lca_group, cohort)) |>
+  mutate(
+    prop = n/total
+  ) |>
+  filter(demographic_cohort != "Healthy and Low User") |>
+  ggplot(aes(x=fct_rev(demographic_cohort), y=prop, fill = cohort)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
+                      palette = phsstyles::phs_colour_values) +
+  coord_flip() +
+  facet_grid(.~lca_group) +
+  labs(y="% of people",
+       x= NULL,
+       fill = NULL,
+       subtitle = "All other Population Segments:") +
+  phsstyles::theme_phs()
+```
+
+When taking into account the relationship between health needs and age, the difference in the population segments between HL1 applicants and the general population becomes more stark. The following charts use pan-Lanarkshire data due to low counts of HL1 applicants in the over 65 category. 
+Some of clearest differences in health profiles are in the youngest age bracket, with a far smaller proportion of HL1 applicants aged 15-24 categorised as 'healthy and low service use' than their peers. This is partly due to a relatively high proportion of applicants in this age group falling in the 'maternity' segment, indicating they were pregnant at some point within the financial year of their HL1 application. Other segments, such as Mental health and substance use, remain over represented among HL1 applicants across all age groups. 
+Amongst older adults we see a lessening discrepancy in the proportion categorised as 'healthy and low service use'. In those age 65 and over there is little difference in the proportion in this segment, although HL1 applicants are still likely to be younger than the general population within this age group. Conversely, a frailty profile is disproportionately common in HL1 applicants over 65.
+
+```{r}
+matched |> filter(lca_group == "Pan Lanarkshire", !is.na(age_group)) |>
+  group_by(age_group, cohort) |>
+  summarise(healthy = mean(demographic_cohort == "Healthy and Low User")) |>
+  ggplot(aes(x=age_group, y=healthy, colour = cohort, group = cohort)) +
+  geom_point() +
+  geom_line() +
+  scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+  scale_colour_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
+                      palette = phsstyles::phs_colour_values) +
+  labs(
+    title = "Population Segment by age group",
+    subtitle = "'Healthy and low service use' segment:",
+    y = "% within age group",
+    x = NULL,
+    colour= NULL
+  ) +
+  phsstyles::theme_phs() +
+  theme(panel.grid.major.y = element_line(color = grDevices::rgb(190/255, 190/255, 190/255)), 
+        panel.grid.major.x = element_blank())
+```
+
+
+```{r}
+matched |> filter(lca_group == "Pan Lanarkshire",
+                  !is.na(age_group),
+                  demographic_cohort != "Healthy and Low User") |>
+  count(age_group, cohort, demographic_cohort) |>
+  mutate(
+    total = sum(n),
+    .by=c(age_group, cohort)) |>
+  mutate(
+    prop = n/total
+  ) |>
+  ggplot(aes(x=fct_rev(demographic_cohort), y=prop, fill = cohort)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
+                      palette = phsstyles::phs_colour_values) +
+  coord_flip() +
+  facet_wrap(~age_group, nrow = 1) +
+  labs(y="% of people",
+       x= NULL,
+       fill = NULL,
+       subtitle = "All other Population Segments:") +
+  phsstyles::theme_phs()
+```
+
+### Service use cohort
+
+```{r}
+matched |> filter(lca_group != "Pan Lanarkshire") |>
+  count(lca_group, cohort, service_use_cohort) |>
+  mutate(
+    total = sum(n),
+    .by=c(lca_group, cohort)) |>
+  mutate(
+    prop = n/total
+  ) |>
+  ggplot(aes(x=fct_rev(service_use_cohort), y=prop, fill = cohort)) +
+  geom_col(position = "dodge") +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
+                      palette = phsstyles::phs_colour_values) +
+  coord_flip() +
+  facet_grid(.~lca_group) +
+  labs(y="% of people",
+       x= NULL,
+       title = "Service use profiles",
+       subtitle = "Area of highest healthcare cost",
+       fill = NULL) +
+  phsstyles::theme_phs() +
+  theme(legend.position = "bottom")
+```
