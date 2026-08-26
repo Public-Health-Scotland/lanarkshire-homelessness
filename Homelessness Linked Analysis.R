@@ -172,6 +172,15 @@ matched <- matched %>%
   mutate(lca_group = "Pan Lanarkshire") %>%
   bind_rows(matched)
 
+# save out linked data
+write_parquet(
+  matched,
+  glue::glue(
+    "/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Data/Linked Data/linked_data_{year}_{date}.parquet",
+    year = years,
+    date = ymd(Sys.Date())
+  )
+)
 
 # rates -------------------------------------------------------------------
 
