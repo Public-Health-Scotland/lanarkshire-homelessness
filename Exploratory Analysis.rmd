@@ -1,19 +1,23 @@
 ---
 title: "Exploratory analysis of HL1 applicants"
-format: docx
-execute:
-  echo: false
-  warning: false
+output: 
+  html_document:
+    self_contained: true
 ---
 
 ```{r}
 ## Note! Do not use 'render' button as this will render locally
 ## Copy this into the terminal
-# rmarkdown::render("Exploratory Analysis.qmd", output_dir = "/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Output/")
+# rmarkdown::render("Exploratory Analysis.rmd", output_dir = "/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Output/")
 ```
 
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE
+)
 
-```{r setup}
 pacman::p_load(
   arrow,
   tidyverse)
@@ -26,11 +30,11 @@ matched <- read_parquet(filename)
 message("Using ", basename(filename))
 ```
 
-## Demographic and service use profiles
+## Population segements and service use profiles
 
 The Source team in PHS produce two classifications of individuals based on their health, demographics, and healthcare usage. The 'Service Use' profile reflects where the highest proportion of health cost was spent in the financial year. The 'Population Segments' profile reflects the health needs and demographic characteristics, based on diagnosis codes, long-term conditions, and other health information. The Population Segments are ordered by estimated resource use, with people assigned to the highest resource-use profile that they meet the criteria for.
 
-| Cohort | High-level description | Detailed definition |
+| Population segment | High-level description | Detailed definition |
 |------------------------|------------------------|------------------------|
 | End of Life | People who died during the financial year. | People who died, excluding deaths due to accidents. Accident deaths are defined as any of the ten death diagnoses containing ICD-10 codes V01-Y84, excluding falls (W00-W19). |
 | Frailty | Older adults with evidence of frailty through healthcare or social care activity. | People admitted to Geriatric Long Stay (significant facility 1E) or inpatient Geriatric Medicine (specialty AB); had one of the following diagnoses: F00-F03, F05, G20, G21, G22X, I61, I63, I64, R268, W00-W19; had a Care Plan package with a frailty flag; or were aged 65+ and living in a care home or receiving home care without Learning Disability or Physical Disability flags in their Care Plan record. |
@@ -76,16 +80,18 @@ matched <- matched |>
   )
 ```
 
-The 'healthy and low service use' population segment is the largest, both for HL1 applicants and the general population, across both South and North Lanarkshire. However, fewer HL1 applicants are 'healthy and low service user' than the general population, with the disparity being particularly pronounced in North Lanarkshire. Of the remaining population segments, we see HL1 applicants are disproportionately represented in the Adult Major Conditions, Maternity, Mental Health and Substance Use profiles. Fewer HL1 applicants are in the 'complex conditions' segments than the general population, likely because these tend to be chronic conditions more prevalent in old age. 
+The 'healthy and low service use' population segment is the largest, both for HL1 applicants and the general population, across both South and North Lanarkshire. However, fewer HL1 applicants are 'healthy and low service user' than the general population, with the disparity being particularly pronounced in North Lanarkshire.
 
-```{r}
+Of the remaining population segments, we see HL1 applicants are disproportionately represented in the Adult Major Conditions, Maternity, Mental Health and Substance Use profiles. Fewer HL1 applicants are in the 'complex conditions' segments than the general population, likely because these tend to be chronic conditions more prevalent in old age.
+
+```{r healthy chart, fig.width=8, fig.height=4}
 matched |> filter(lca_group != "Pan Lanarkshire") |>
   group_by(lca_group, cohort) |>
   summarise(healthy = mean(demographic_cohort == "Healthy and Low User")) |>
   ggplot(aes(x=cohort, y=healthy, fill = cohort)) +
   geom_col() +
   scale_y_continuous(labels = scales::percent) +
-  scale_x_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants")) +
+  scale_x_discrete(labels = c("non-HL1" = str_wrap("General population", width =20), "HL1" = str_wrap("HL1 applicants"), width =20)) +
   scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
                       palette = phsstyles::phs_colour_values) +
   coord_flip() +
@@ -99,7 +105,7 @@ matched |> filter(lca_group != "Pan Lanarkshire") |>
   
 ```
 
-```{r}
+```{r segments chart, fig.width=8, fig.height=6}
 matched |> filter(lca_group != "Pan Lanarkshire") |>
   count(lca_group, cohort, demographic_cohort) |>
   mutate(
@@ -111,6 +117,7 @@ matched |> filter(lca_group != "Pan Lanarkshire") |>
   filter(demographic_cohort != "Healthy and Low User") |>
   ggplot(aes(x=fct_rev(demographic_cohort), y=prop, fill = cohort)) +
   geom_col(position = "dodge") +
+  scale_x_discrete(labels = \(x) str_wrap(x, width =20)) +
   scale_y_continuous(labels = scales::percent) +
   scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
                       palette = phsstyles::phs_colour_values) +
@@ -124,10 +131,12 @@ matched |> filter(lca_group != "Pan Lanarkshire") |>
 ```
 
 When taking into account the relationship between health needs and age, the difference in the population segments between HL1 applicants and the general population becomes more stark. The following charts use pan-Lanarkshire data due to low counts of HL1 applicants in the over 65 category. 
+
 Some of clearest differences in health profiles are in the youngest age bracket, with a far smaller proportion of HL1 applicants aged 15-24 categorised as 'healthy and low service use' than their peers. This is partly due to a relatively high proportion of applicants in this age group falling in the 'maternity' segment, indicating they were pregnant at some point within the financial year of their HL1 application. Other segments, such as Mental health and substance use, remain over represented among HL1 applicants across all age groups. 
+
 Amongst older adults we see a lessening discrepancy in the proportion categorised as 'healthy and low service use'. In those age 65 and over there is little difference in the proportion in this segment, although HL1 applicants are still likely to be younger than the general population within this age group. Conversely, a frailty profile is disproportionately common in HL1 applicants over 65.
 
-```{r}
+```{r healthy by age,, fig.width=8, fig.height=4}
 matched |> filter(lca_group == "Pan Lanarkshire", !is.na(age_group)) |>
   group_by(age_group, cohort) |>
   summarise(healthy = mean(demographic_cohort == "Healthy and Low User")) |>
@@ -149,11 +158,9 @@ matched |> filter(lca_group == "Pan Lanarkshire", !is.na(age_group)) |>
         panel.grid.major.x = element_blank())
 ```
 
-
-```{r}
+```{r segments by age, fig.width=8, fig.height=6}
 matched |> filter(lca_group == "Pan Lanarkshire",
-                  !is.na(age_group),
-                  demographic_cohort != "Healthy and Low User") |>
+                  !is.na(age_group)) |>
   count(age_group, cohort, demographic_cohort) |>
   mutate(
     total = sum(n),
@@ -161,8 +168,10 @@ matched |> filter(lca_group == "Pan Lanarkshire",
   mutate(
     prop = n/total
   ) |>
+  filter(demographic_cohort != "Healthy and Low User") |>
   ggplot(aes(x=fct_rev(demographic_cohort), y=prop, fill = cohort)) +
   geom_col(position = "dodge") +
+  scale_x_discrete(labels = \(x) str_wrap(x, width =20)) +
   scale_y_continuous(labels = scales::percent) +
   scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
                       palette = phsstyles::phs_colour_values) +
@@ -172,12 +181,83 @@ matched |> filter(lca_group == "Pan Lanarkshire",
        x= NULL,
        fill = NULL,
        subtitle = "All other Population Segments:") +
-  phsstyles::theme_phs()
+  phsstyles::theme_phs() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ```
+
+```{r segments model, fig.width=8, fig.height=6}
+seg_mod <- matched |>
+  select(cohort, age, gender, demographic_cohort) |>
+  mutate(hl1 = factor(cohort, levels = c("non-HL1", "HL1")),
+         demographic_cohort = fct_rev(demographic_cohort)) |>
+  filter(age >= 15) |>
+  glm(formula = hl1 ~ age + gender + demographic_cohort, family = "binomial")
+
+
+or_df <- broom::tidy(seg_mod) %>%
+  filter_out(term %in% c("(Intercept)", "age", "gender")) %>%
+  mutate(
+    conf.low = exp(estimate - 1.96 * std.error),
+    conf.high = exp(estimate + 1.96 * std.error),
+    estimate = exp(estimate),
+    term = str_remove(term, "demographic_cohort")
+  )
+
+ggplot(
+  or_df,
+  aes(
+    x = estimate,
+    y = reorder(term, estimate)
+  )
+) +
+  geom_vline(
+    xintercept = 1,
+    linetype = 2
+  ) +
+  geom_pointrange(
+    aes(
+      xmin = conf.low,
+      xmax = conf.high
+    )
+  ) +
+  scale_y_discrete(labels = \(x) str_wrap(x, width =20)) +
+  labs(
+    x = "Odds ratio",
+    y = NULL,
+    title = "Age and sex adjusted odds ratios of HL1 applicant status by population segment",
+    subtitle = "Reference: Healthy and low service use"
+  ) +
+  scale_x_log10() +
+  phsstyles::theme_phs() +
+  theme(panel.grid.minor = element_line(colour = "grey80"))
+
+```
+
+```{r seg_mod marginal effects, fig.width=8, fig.height=6}
+pred <- ggeffects::ggpredict(seg_mod, "demographic_cohort")
+
+ggplot(pred,
+       aes(x = predicted,
+           y = x)) +
+  geom_pointrange(
+    aes(xmin = conf.low,
+        xmax = conf.high)
+  ) +
+  scale_x_continuous(labels = scales::percent) +
+  scale_y_discrete(labels = \(x) str_wrap(x, width =20)) +
+  phsstyles::theme_phs() +
+  theme(panel.grid.minor = element_line(colour = "grey80")) +
+  labs(x = "Predicted probability (%)",
+       y= NULL,
+       title = "Predicted probability of HL1 application by population segment",
+       subtitle = "Adjusted for age and sex")
+
+```
+
 
 ### Service use cohort
 
-```{r}
+```{r serice use chart, fig.width=8, fig.height=6}
 matched |> filter(lca_group != "Pan Lanarkshire") |>
   count(lca_group, cohort, service_use_cohort) |>
   mutate(
@@ -188,6 +268,7 @@ matched |> filter(lca_group != "Pan Lanarkshire") |>
   ) |>
   ggplot(aes(x=fct_rev(service_use_cohort), y=prop, fill = cohort)) +
   geom_col(position = "dodge") +
+  scale_x_discrete(labels = \(x) str_wrap(x, width =20)) +
   scale_y_continuous(labels = scales::percent) +
   scale_fill_discrete(labels = c("non-HL1" = "General population", "HL1" = "HL1 applicants"),
                       palette = phsstyles::phs_colour_values) +
@@ -198,6 +279,5 @@ matched |> filter(lca_group != "Pan Lanarkshire") |>
        title = "Service use profiles",
        subtitle = "Area of highest healthcare cost",
        fill = NULL) +
-  phsstyles::theme_phs() +
-  theme(legend.position = "bottom")
+  phsstyles::theme_phs()
 ```
