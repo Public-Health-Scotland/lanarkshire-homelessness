@@ -99,7 +99,9 @@ ind_vars <- c(
   "hc_non_personal_hours", "hc_non_personal_hours_cost",
   "hc_reablement_episodes", "hc_reablement_hours", "hc_reablement_hours_cost",
   "at_alarms", "at_telecare", "sds_option_1", "sds_option_2", "sds_option_3",
-  "sds_option_4"
+  "sds_option_4",
+  "demographic_cohort",
+  "service_use_cohort"
 )
 
 # read in
