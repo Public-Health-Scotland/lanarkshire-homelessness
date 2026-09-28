@@ -75,33 +75,34 @@ HL1_all_agg <- HL1_all %>%
 
 ind_vars <- c(
   "year", "anon_chi", "age", "gender", "lca", "keep_population", "hscp2019",
+  "demographic_cohort", "service_use_cohort",
+  # hospital use
   "ae_attendances", "acute_episodes", "acute_inpatient_episodes",
   "acute_inpatient_beddays", "acute_el_inpatient_episodes",
   "acute_el_inpatient_beddays", "acute_non_el_inpatient_episodes",
-  "acute_non_el_inpatient_beddays", "acute_daycase_episodes", "mh_episodes",
-  "mh_inpatient_episodes", "mh_inpatient_beddays", "mh_el_inpatient_episodes",
-  "mh_el_inpatient_beddays", "mh_non_el_inpatient_episodes", "mh_non_el_inpatient_beddays",
+  "acute_non_el_inpatient_beddays", "acute_daycase_episodes",
+  # preventable admissions
+  "preventable_admissions", "preventable_beddays",
+  # mh
+  "mh_episodes", "mh_inpatient_episodes", "mh_inpatient_beddays",
+  "mh_el_inpatient_episodes", "mh_el_inpatient_beddays",
+  "mh_non_el_inpatient_episodes", "mh_non_el_inpatient_beddays",
+  # maternity
   "mat_episodes", "mat_inpatient_episodes", "mat_inpatient_beddays",
-  "mat_daycase_episodes", "op_newcons_attendances", "op_newcons_dnas", "gls_episodes",
-  "gls_inpatient_episodes", "gls_inpatient_beddays", "gls_el_inpatient_episodes",
-  "gls_el_inpatient_beddays", "gls_non_el_inpatient_episodes",
-  "gls_non_el_inpatient_beddays", "preventable_admissions",
-  "preventable_beddays", "cmh_contacts", "ooh_cases", "ooh_homev", "ooh_advice",
-  "ooh_dn", "ooh_nhs24", "ooh_other", "ooh_pcc", "ooh_covid_advice",
-  "ooh_covid_assessment", "ooh_covid_other", "ooh_consultation_time",
+  "mat_daycase_episodes",
+  # out patient attendance
+  "op_newcons_attendances", "op_newcons_dnas",
+  # out-of-hours
+  "ooh_cases", "ooh_advice", "ooh_nhs24", "ooh_other", "ooh_pcc", "ooh_consultation_time",
+  # delayed discharge
   "dd_noncode9_episodes", "dd_noncode9_beddays", "dd_code9_episodes",
-  "dd_code9_beddays", "dn_episodes", "health_net_cost", "pis_paid_items",
-  "pis_cost", "arth", "asthma", "atrialfib", "cancer", "cvd", "liver", "copd",
-  "dementia", "diabetes", "epilepsy", "chd", "hefailure", "ms", "parkinsons",
-  "refailure", "ch_cis_episodes", "ch_beddays", "ch_cost", "hc_episodes",
-  "hc_total_hours", "hc_total_cost", "hc_personal_episodes",
-  "hc_personal_hours", "hc_personal_hours_cost", "hc_non_personal_episodes",
-  "hc_non_personal_hours", "hc_non_personal_hours_cost",
-  "hc_reablement_episodes", "hc_reablement_hours", "hc_reablement_hours_cost",
-  "at_alarms", "at_telecare", "sds_option_1", "sds_option_2", "sds_option_3",
-  "sds_option_4",
-  "demographic_cohort",
-  "service_use_cohort"
+  "dd_code9_beddays",
+  # health costs
+  "health_net_cost", "pis_paid_items", "pis_cost",
+  # LTCs
+  "arth", "asthma", "atrialfib", "cancer", "cvd", "liver", "copd",
+  "dementia", "diabetes", "epilepsy", "chd", "hefailure", "ms",
+  "parkinsons", "refailure"
 )
 
 # read in
