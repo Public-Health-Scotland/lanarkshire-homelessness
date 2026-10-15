@@ -91,6 +91,11 @@ HL1_all <- HL1_all |>
     )
   )
 
+HL1_all <- HL1_all |>
+  bind_rows(
+    HL1_all |> mutate(hl1_sending_lca = "Pan Lanarkshire")
+  )
+
 # summary function --------------------------------------------------------
 
 
