@@ -25,32 +25,116 @@ years <- c(2324)
 episode_vars <- c("year", "anon_chi", "age", "gender", "smrtype", "hl1_sending_lca", "record_keydate1", "hl1_property_type", "hl1_reason_ftm")
 
 # read and combine HL1 applications from single year episode files
-HL1_all <- map(
-  years,
-  \(yr){
-    filename <- paste0(
-      "/conf/hscdiip/01-Source-linkage-files/source-episode-file-",
-      yr,
-      ".parquet"
-    )
-    cat("Reading in ", filename, "\n")
-    read_parquet(
-      filename,
-      col_select = episode_vars
-    ) %>%
-      filter(smrtype == "HL1-Main") %>%
-      filter(record_keydate1 >= dmy(paste0("01-04-20", substr(yr, 1, 2))) &
-        record_keydate1 <= dmy(paste0("31-03-20", substr(yr, 3, 4))))
-  }
+
+HL1_all <- open_dataset(
+  str_glue(
+    "/conf/hscdiip/01-Source-linkage-files/source-episode-file-{yr}.parquet",
+    yr = years
+  )
 ) %>%
-  list_rbind()
+  select(all_of(episode_vars)) %>%
+  filter(
+    smrtype == "HL1-Main",
+    hl1_sending_lca %in% c("S12000044", "S12000029")
+  ) %>%
+  collect()
 
-#### filter to LCA
+#### label LCA, property type, and reasons
 HL1_all <- HL1_all %>%
-  mutate(hl1_sending_lca = case_when(
-    hl1_sending_lca == "S12000044" ~ "North Lanarkshire",
-    hl1_sending_lca == "S12000029" ~ "South Lanarkshire"
-  ))
+  mutate(
+    hl1_sending_lca = case_when(
+      hl1_sending_lca == "S12000044" ~ "North Lanarkshire",
+      hl1_sending_lca == "S12000029" ~ "South Lanarkshire"
+    ),
+    hl1_property_type = str_remove(hl1_property_type, ".*\\d - "),
+    reason_financial = str_detect(hl1_reason_ftm, "F"),
+    reason_physical = str_detect(hl1_reason_ftm, "Ph"),
+    reason_mental = str_detect(hl1_reason_ftm, "M"),
+    reason_support = str_detect(hl1_reason_ftm, "U"),
+    reason_family = str_detect(hl1_reason_ftm, "L"),
+    reason_managing = str_detect(hl1_reason_ftm, "O"),
+    reason_drugs = str_detect(hl1_reason_ftm, "D"),
+    reason_criminal = str_detect(hl1_reason_ftm, "C"),
+    reason_other = str_detect(hl1_reason_ftm, "N")
+  )
 
-HL1_all <- HL1_all %>%
-  filter(hl1_sending_lca %in% c("North Lanarkshire", "South Lanarkshire"))
+reason_lookup <- c(
+  reason_financial = "Financial Difficulties / Debt / Unemployment",
+  reason_physical  = "Physical Health Reasons",
+  reason_mental    = "Mental Health Reasons",
+  reason_support   = "Unmet Need for Support from Housing / Social Work / Health Services",
+  reason_family    = "Lack of Support from Friends / Family",
+  reason_managing  = "Difficulties Managing on Own",
+  reason_drugs     = "Drug / Alcohol Dependency",
+  reason_criminal  = "Criminal / Anti-Social Behaviour",
+  reason_other     = "Not to do with Applicant Household"
+)
+
+HL1_all |>
+  count(hl1_sending_lca, hl1_property_type) |>
+  group_by(hl1_sending_lca) |>
+  mutate(prop = n / sum(n)) |>
+  ggplot(aes(x = hl1_property_type, y = prop, fill = hl1_sending_lca)) +
+  geom_col(position = position_dodge2(preserve = "single")) +
+  scale_x_discrete(
+    labels = \(x) stringr::str_wrap(x, width = 40)
+  ) +
+  labs(
+    title = "Property type of last settled address",
+    y = "Proportion of applications",
+    x = NULL
+  ) +
+  coord_flip() +
+  phsstyles::scale_fill_discrete_phs(type = "qual") +
+  phsstyles::theme_phs()
+
+
+HL1_all |>
+  rowwise() |>
+  mutate(reasons = sum(c_across(reason_financial:reason_other))) |>
+  ungroup() |>
+  count(hl1_sending_lca, reasons) |>
+  mutate(reasons = as.factor(replace_when(
+    as.character(reasons),
+    reasons > 3 ~ "4+"
+  ))) |>
+  ggplot(aes(y = hl1_sending_lca, x = n, fill = reasons)) +
+  geom_col(position = position_fill(reverse = TRUE)) +
+  labs(
+    x = "Proportion of applications",
+    y = NULL,
+    title = "Number of reasons recorded"
+  ) +
+  phsstyles::scale_fill_discrete_phs(type = "qual", palette = "all") +
+  phsstyles::theme_phs()
+
+
+HL1_all |>
+  group_by(hl1_sending_lca) |>
+  summarise(across(starts_with("reason"), mean),
+    reason_none = mean(hl1_reason_ftm == "")
+  ) |>
+  pivot_longer(
+    cols = starts_with("reason"),
+    names_to = "reason",
+    values_to = "prop",
+    names_transform = ~ recode_values(.x,
+      from = names(reason_lookup),
+      to = reason_lookup,
+      default = "No reason recorded"
+    ) |>
+      factor(levels = c(reason_lookup, "No reason recorded"))
+  ) |>
+  ggplot(aes(x = reason, y = prop, fill = hl1_sending_lca)) +
+  geom_col(position = position_dodge2(preserve = "single")) +
+  scale_x_discrete(
+    labels = \(x) stringr::str_wrap(x, width = 40)
+  ) +
+  labs(
+    title = "Reason for failing to maintain accommodation",
+    y = "Proportion of applications",
+    x = NULL
+  ) +
+  coord_flip() +
+  phsstyles::scale_fill_discrete_phs(type = "qual") +
+  phsstyles::theme_phs()
