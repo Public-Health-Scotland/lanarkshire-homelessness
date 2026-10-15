@@ -76,16 +76,80 @@ reason_lookup <- c(
   reason_other     = "Not to do with Applicant Household"
 )
 
+HL1_all <- HL1_all |>
+  mutate(
+    age_group = case_when(
+      age <= 17 ~ "0-17",
+      between(age, 18, 44) ~ "18-44",
+      between(age, 45, 64) ~ "45-64",
+      age >= 65 ~ "65+"
+    ),
+    gender = recode_values(
+      gender,
+      1 ~ "Male",
+      2 ~ "Female"
+    )
+  )
 
-# tabs & plots ----------------------------------------------------------------
+# summary function --------------------------------------------------------
+
+
+age_gender_summary <- function(
+  data,
+  var,
+  other_group = "hl1_sending_lca",
+  include_zero_counts = TRUE
+) {
+  groups <- list(
+    character(),
+    "gender",
+    "age_group",
+    c("gender", "age_group")
+  )
+
+  out <- groups |>
+    purrr::map(\(g) {
+      grouping_vars <- c(g, other_group)
+
+      x <- data |>
+        count(
+          across(all_of(c(grouping_vars, var)))
+        )
+
+      if (include_zero_counts) {
+        x <- x |>
+          tidyr::complete(
+            tidyr::nesting(!!!rlang::syms(grouping_vars)),
+            !!rlang::sym(var),
+            fill = list(n = 0)
+          )
+      }
+
+      x |>
+        group_by(
+          across(all_of(grouping_vars))
+        ) |>
+        mutate(prop = n / sum(n)) |>
+        mutate(
+          gender = if (!"gender" %in% g) "all" else gender,
+          age_group = if (!"age_group" %in% g) "all" else age_group,
+          .before = all_of(var)
+        )
+    }) |>
+    bind_rows()
+
+  return(out)
+}
+
+# summaries ----------------------------------------------------------------
 
 # applications per person
 
 apps_pp <- HL1_all |>
   filter(!is.na(anon_chi)) |>
-  count(anon_chi, hl1_sending_lca) |>
+  count(anon_chi, hl1_sending_lca, age_group, gender) |>
   rename(applications = n) |>
-  count(hl1_sending_lca, applications)
+  age_gender_summary("applications")
 
 ggplot(apps_pp, aes(y = hl1_sending_lca, x = n, fill = factor(applications))) +
   geom_col(position = position_fill(reverse = T)) +
@@ -99,12 +163,50 @@ ggplot(apps_pp, aes(y = hl1_sending_lca, x = n, fill = factor(applications))) +
 
 # property type
 
-prop_type <- HL1_all |>
-  count(hl1_sending_lca, hl1_property_type) |>
-  group_by(hl1_sending_lca) |>
-  mutate(prop = n / sum(n))
+prop_type <- age_gender_summary(HL1_all, "hl1_property_type")
 
-ggplot(prop_type, aes(x = hl1_property_type, y = prop, fill = hl1_sending_lca)) +
+
+# reasons
+
+n_reasons <- HL1_all |>
+  rowwise() |>
+  mutate(reasons = sum(c_across(reason_financial:reason_other))) |>
+  ungroup() |>
+  mutate(reasons = as.factor(replace_when(
+    as.character(reasons),
+    reasons > 3 ~ "4+"
+  ))) |>
+  age_gender_summary("reasons")
+
+reasons <- HL1_all |>
+  mutate(reason_none = hl1_reason_ftm == "") |>
+  pivot_longer(
+    cols = starts_with("reason"),
+    names_to = "reason",
+    values_to = "has_reason"
+  ) |>
+  mutate(
+    reason = recode_values(
+      reason,
+      from = names(reason_lookup),
+      to = reason_lookup,
+      default = "No reason recorded"
+    ) |>
+      factor(levels = c(reason_lookup, "No reason recorded"))
+  ) |>
+  age_gender_summary(
+    var = "has_reason",
+    other_group = c("hl1_sending_lca", "reason")
+  ) |>
+  filter(has_reason == TRUE) |>
+  select(-has_reason)
+
+
+# exploratory plots -------------------------------------------------------
+
+prop_type |>
+  filter(age_group == "all", gender == "all") |>
+  ggplot(aes(x = hl1_property_type, y = prop, fill = hl1_sending_lca)) +
   geom_col(position = position_dodge2(preserve = "single")) +
   scale_x_discrete(
     labels = \(x) stringr::str_wrap(x, width = 40)
@@ -118,19 +220,28 @@ ggplot(prop_type, aes(x = hl1_property_type, y = prop, fill = hl1_sending_lca)) 
   phsstyles::scale_fill_discrete_phs(type = "qual") +
   phsstyles::theme_phs()
 
-# reasons
 
-n_reasons <- HL1_all |>
-  rowwise() |>
-  mutate(reasons = sum(c_across(reason_financial:reason_other))) |>
-  ungroup() |>
-  count(hl1_sending_lca, reasons) |>
-  mutate(reasons = as.factor(replace_when(
-    as.character(reasons),
-    reasons > 3 ~ "4+"
-  )))
+prop_type |>
+  filter(age_group != "all", gender != "all") |>
+  ggplot(aes(x = hl1_property_type, y = prop, fill = hl1_sending_lca)) +
+  geom_col(position = position_dodge2(preserve = "single")) +
+  scale_x_discrete(
+    labels = \(x) stringr::str_wrap(x, width = 40)
+  ) +
+  labs(
+    title = "Property type of last settled address",
+    y = "Proportion of applications",
+    x = NULL
+  ) +
+  coord_flip() +
+  facet_grid(gender ~ age_group) +
+  phsstyles::scale_fill_discrete_phs(type = "qual") +
+  phsstyles::theme_phs()
 
-ggplot(n_reasons, aes(y = hl1_sending_lca, x = n, fill = reasons)) +
+
+n_reasons |>
+  filter(age_group == "all", gender == "all") |>
+  ggplot(aes(y = hl1_sending_lca, x = n, fill = reasons)) +
   geom_col(position = position_fill(reverse = TRUE)) +
   labs(
     x = "Proportion of applications",
@@ -140,29 +251,30 @@ ggplot(n_reasons, aes(y = hl1_sending_lca, x = n, fill = reasons)) +
   phsstyles::scale_fill_discrete_phs(type = "qual", palette = "all") +
   phsstyles::theme_phs()
 
-
-reasons <- HL1_all |>
-  group_by(hl1_sending_lca) |>
-  summarise(across(starts_with("reason"), mean),
-    reason_none = mean(hl1_reason_ftm == "")
-  ) |>
-  pivot_longer(
-    cols = starts_with("reason"),
-    names_to = "reason",
-    values_to = "prop",
-    names_transform = ~ recode_values(.x,
-      from = names(reason_lookup),
-      to = reason_lookup,
-      default = "No reason recorded"
-    ) |>
-      factor(levels = c(reason_lookup, "No reason recorded"))
-  )
-
-ggplot(reasons, aes(x = reason, y = prop, fill = hl1_sending_lca)) +
+reasons |>
+  filter(age_group == "all", gender == "all") |>
+  ggplot(aes(x = reason, y = prop, fill = hl1_sending_lca)) +
   geom_col(position = position_dodge2(preserve = "single")) +
   scale_x_discrete(
     labels = \(x) stringr::str_wrap(x, width = 40)
   ) +
+  labs(
+    title = "Reason for failing to maintain accommodation",
+    y = "Proportion of applications",
+    x = NULL
+  ) +
+  coord_flip() +
+  phsstyles::scale_fill_discrete_phs(type = "qual") +
+  phsstyles::theme_phs()
+
+reasons |>
+  filter(age_group != "all", gender != "all") |>
+  ggplot(aes(x = reason, y = prop, fill = hl1_sending_lca)) +
+  geom_col(position = position_dodge2(preserve = "single")) +
+  scale_x_discrete(
+    labels = \(x) stringr::str_wrap(x, width = 40)
+  ) +
+  facet_grid(gender ~ age_group) +
   labs(
     title = "Reason for failing to maintain accommodation",
     y = "Proportion of applications",
