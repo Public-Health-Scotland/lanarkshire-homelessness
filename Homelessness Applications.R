@@ -131,8 +131,8 @@ age_gender_summary <- function(
         ) |>
         mutate(prop = n / sum(n)) |>
         mutate(
-          gender = if (!"gender" %in% g) "all" else gender,
-          age_group = if (!"age_group" %in% g) "all" else age_group,
+          gender = if (!"gender" %in% g) "All" else gender,
+          age_group = if (!"age_group" %in% g) "All" else age_group,
           .before = all_of(var)
         )
     }) |>
@@ -201,6 +201,26 @@ reasons <- HL1_all |>
   filter(has_reason == TRUE) |>
   select(-has_reason)
 
+# save out
+
+bind_rows(
+  apps_pp |> rename(value = applications) |>
+    mutate(value = as.character(value)) |>
+    mutate(var = "Number of applications made", .before = value),
+  prop_type |> rename(value = hl1_property_type) |>
+    mutate(var = "Property type of last settled address", .before = value),
+  n_reasons |> rename(value = reasons) |>
+    mutate(var = "Number of reasons recorded", .before = value),
+  reasons |> rename(value = reason) |>
+    mutate(var = "Reason for failing to maintain accommodation", .before = value)
+) |>
+  write_csv(
+    str_glue(
+      "/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Data/HL1 Applications Analysis datasheet ({fromto}) - {date}.csv",
+      fromto = ifelse(length(years) == 1, years, paste0(min(years), "-", max(years))),
+      date = ymd(Sys.Date())
+    )
+  )
 
 # exploratory plots -------------------------------------------------------
 
