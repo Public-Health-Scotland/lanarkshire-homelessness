@@ -76,11 +76,35 @@ reason_lookup <- c(
   reason_other     = "Not to do with Applicant Household"
 )
 
-HL1_all |>
+
+# tabs & plots ----------------------------------------------------------------
+
+# applications per person
+
+apps_pp <- HL1_all |>
+  filter(!is.na(anon_chi)) |>
+  count(anon_chi, hl1_sending_lca) |>
+  rename(applications = n) |>
+  count(hl1_sending_lca, applications)
+
+ggplot(apps_pp, aes(y = hl1_sending_lca, x = n, fill = factor(applications))) +
+  geom_col(position = position_fill(reverse = T)) +
+  labs(
+    title = "Number of applications per person",
+    x = "Proportion of applicants",
+    y = NULL
+  ) +
+  phsstyles::scale_fill_discrete_phs(type = "qual") +
+  phsstyles::theme_phs()
+
+# property type
+
+prop_type <- HL1_all |>
   count(hl1_sending_lca, hl1_property_type) |>
   group_by(hl1_sending_lca) |>
-  mutate(prop = n / sum(n)) |>
-  ggplot(aes(x = hl1_property_type, y = prop, fill = hl1_sending_lca)) +
+  mutate(prop = n / sum(n))
+
+ggplot(prop_type, aes(x = hl1_property_type, y = prop, fill = hl1_sending_lca)) +
   geom_col(position = position_dodge2(preserve = "single")) +
   scale_x_discrete(
     labels = \(x) stringr::str_wrap(x, width = 40)
@@ -94,8 +118,9 @@ HL1_all |>
   phsstyles::scale_fill_discrete_phs(type = "qual") +
   phsstyles::theme_phs()
 
+# reasons
 
-HL1_all |>
+n_reasons <- HL1_all |>
   rowwise() |>
   mutate(reasons = sum(c_across(reason_financial:reason_other))) |>
   ungroup() |>
@@ -103,8 +128,9 @@ HL1_all |>
   mutate(reasons = as.factor(replace_when(
     as.character(reasons),
     reasons > 3 ~ "4+"
-  ))) |>
-  ggplot(aes(y = hl1_sending_lca, x = n, fill = reasons)) +
+  )))
+
+ggplot(n_reasons, aes(y = hl1_sending_lca, x = n, fill = reasons)) +
   geom_col(position = position_fill(reverse = TRUE)) +
   labs(
     x = "Proportion of applications",
@@ -115,7 +141,7 @@ HL1_all |>
   phsstyles::theme_phs()
 
 
-HL1_all |>
+reasons <- HL1_all |>
   group_by(hl1_sending_lca) |>
   summarise(across(starts_with("reason"), mean),
     reason_none = mean(hl1_reason_ftm == "")
@@ -130,8 +156,9 @@ HL1_all |>
       default = "No reason recorded"
     ) |>
       factor(levels = c(reason_lookup, "No reason recorded"))
-  ) |>
-  ggplot(aes(x = reason, y = prop, fill = hl1_sending_lca)) +
+  )
+
+ggplot(reasons, aes(x = reason, y = prop, fill = hl1_sending_lca)) +
   geom_col(position = position_dodge2(preserve = "single")) +
   scale_x_discrete(
     labels = \(x) stringr::str_wrap(x, width = 40)
