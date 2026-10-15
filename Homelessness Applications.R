@@ -39,6 +39,12 @@ HL1_all <- open_dataset(
   ) %>%
   collect()
 
+# Deduplicate
+
+HL1_all <- unique(HL1_all)
+
+# wrangle -----------------------------------------------------------------
+
 #### label LCA, property type, and reasons
 HL1_all <- HL1_all %>%
   mutate(
