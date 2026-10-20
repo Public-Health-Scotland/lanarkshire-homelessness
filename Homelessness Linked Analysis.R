@@ -277,6 +277,69 @@ rates <- rates %>%
   )
 
 
+# DSRs --------------------------------------------------------------------
+
+# DSRs only appropriate for 'true' rates (ie not costs per person or bed days)
+# temporarily excluding maternity-specific rates as well
+
+dsr_indicators <- indicator_lookup[str_detect(indicator_lookup, "cost|time|days|paid|LTC|mat", negate = T)]
+
+# build pop
+lan_pop <- matched |>
+  mutate(age_group = case_when(
+    age <= 17 ~ "0-17",
+    between(age, 18, 44) ~ "18-44",
+    between(age, 45, 64) ~ "45-64",
+    age >= 65 ~ "65+"
+  )) |>
+  filter(keep_population == 1) |>
+  count(year, lca_group, age_group) |>
+  rename(lca_pop = n)
+
+#
+obs_count <- matched |>
+  filter(cohort == "HL1") |>
+  mutate(age_group = case_when(
+    age <= 17 ~ "0-17",
+    between(age, 18, 44) ~ "18-44",
+    between(age, 45, 64) ~ "45-64",
+    age >= 65 ~ "65+"
+  )) |>
+  group_by(year, lca_group, age_group) %>%
+  mutate(
+    pop = sum(pop)
+  ) %>%
+  ungroup() %>%
+  select(all_of(unname(dsr_indicators)), year, lca_group, age_group, pop) |>
+  pivot_longer(
+    cols = -c(year, lca_group, age_group, pop),
+    names_to = "indicator",
+    values_to = "value"
+  ) %>%
+  left_join(
+    lan_pop,
+    by = c("year", "age_group", "lca_group")
+  ) %>%
+  count(year, lca_group, age_group, indicator, value, pop, lca_pop)
+
+dsr <- obs_count %>%
+  group_by(indicator, year, lca_group) %>%
+  calculate_dsr(
+    x = n,
+    n = pop,
+    stdpop = lca_pop,
+    independent_events = FALSE,
+    eventfreq = value,
+    ageband = age_group,
+    multiplier = 1000
+  )
+
+
+rates_dsr <- dsr |>
+  select(year, lca_group, indicator, dsr = value, lowercl, uppercl) %>%
+  mutate(cohort = "HL1") %>%
+  left_join(rates, ., by = c("year", "lca_group", "cohort", "indicator"))
+
 # save out ----------------------------------------------------------------
 
 rates_output <- rates %>%
