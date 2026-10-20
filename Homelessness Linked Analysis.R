@@ -286,6 +286,7 @@ dsr_indicators <- indicator_lookup[str_detect(indicator_lookup, "cost|time|days|
 
 # build pop
 lan_pop <- matched |>
+  filter(lca_group == "Pan Lanarkshire") |>
   mutate(age_group = case_when(
     age <= 17 ~ "0-17",
     between(age, 18, 44) ~ "18-44",
@@ -293,38 +294,37 @@ lan_pop <- matched |>
     age >= 65 ~ "65+"
   )) |>
   filter(keep_population == 1) |>
-  count(year, lca_group, age_group) |>
+  count(year, age_group) |>
   rename(lca_pop = n)
 
 #
 obs_count <- matched |>
-  filter(cohort == "HL1") |>
   mutate(age_group = case_when(
     age <= 17 ~ "0-17",
     between(age, 18, 44) ~ "18-44",
     between(age, 45, 64) ~ "45-64",
     age >= 65 ~ "65+"
   )) |>
-  group_by(year, lca_group, age_group) %>%
+  group_by(year, cohort, lca_group, age_group) %>%
   mutate(
     pop = sum(pop)
   ) %>%
   ungroup() %>%
-  select(all_of(unname(dsr_indicators)), year, lca_group, age_group, pop) |>
+  select(all_of(unname(dsr_indicators)), year, cohort, lca_group, age_group, pop) |>
   pivot_longer(
-    cols = -c(year, lca_group, age_group, pop),
+    cols = -c(year, lca_group, cohort, age_group, pop),
     names_to = "indicator",
     values_to = "value"
   ) %>%
   left_join(
     lan_pop,
-    by = c("year", "age_group", "lca_group")
+    by = c("year", "age_group")
   ) %>%
-  count(year, lca_group, age_group, indicator, value, pop, lca_pop)
+  count(year, cohort, lca_group, age_group, indicator, value, pop, lca_pop)
 
 dsr <- obs_count %>%
-  group_by(indicator, year, lca_group) %>%
-  calculate_dsr(
+  group_by(indicator, year, cohort, lca_group) %>%
+  PHEindicatormethods::calculate_dsr(
     x = n,
     n = pop,
     stdpop = lca_pop,
@@ -334,11 +334,28 @@ dsr <- obs_count %>%
     multiplier = 1000
   )
 
+walk(dsr_indicators, \(x) {
+  p <- dsr |>
+    filter(indicator == x) |>
+    ggplot(aes(x = lca_group, y = value, ymin = lowercl, ymax = uppercl, colour = cohort)) +
+    geom_errorbar(position = position_dodge(width = 1)) +
+    geom_point(position = position_dodge2(width = 1)) +
+    labs(
+      title = names(dsr_indicators)[dsr_indicators == x],
+      y = "Rate per 1,000",
+      x = NULL
+    ) +
+    coord_cartesian(ylim = c(0, NA))
 
-rates_dsr <- dsr |>
-  select(year, lca_group, indicator, dsr = value, lowercl, uppercl) %>%
-  mutate(cohort = "HL1") %>%
-  left_join(rates, ., by = c("year", "lca_group", "cohort", "indicator"))
+  print(p)
+})
+
+dsr |>
+  filter(indicator == "ae_attendances") |>
+  ggplot(aes(x = lca_group, y = value, ymin = lowercl, ymax = uppercl, colour = cohort)) +
+  geom_errorbar(position = position_dodge(width = 1)) +
+  geom_point(position = position_dodge2(width = 1)) +
+  coord_cartesian(ylim = c(0, NA))
 
 # save out ----------------------------------------------------------------
 
