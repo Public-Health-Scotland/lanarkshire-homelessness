@@ -82,8 +82,9 @@ ae_df <- matched |>
   select(year, age, gender, cohort, lca_group, hscp2019, pop, ae_attendances) |>
   mutate(
     age_group = case_when(
-      age <= 17 ~ "0-17",
-      between(age, 18, 44) ~ "18-44",
+      age <= 15 ~ "0-15",
+      between(age, 16, 25) ~ "16-25",
+      between(age, 26, 44) ~ "26-44",
       between(age, 45, 64) ~ "45-64",
       age >= 65 ~ "65+"
     ),
@@ -108,7 +109,8 @@ cum_freq <- ae_df |>
   mutate(
     cumfreq = cumsum(n),
     total = sum(n),
-    perc = cumfreq / total
+    perc = n / total,
+    cumperc = cumfreq / total
   ) |>
   arrange(year, cohort, lca_group, ae_attendances)
 
