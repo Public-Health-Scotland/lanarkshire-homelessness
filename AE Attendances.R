@@ -157,7 +157,7 @@ pop <- std_rate_df |>
 
 std_rate <- std_rate_df |>
   group_by(year, age_group, cohort, lca_group) |>
-  count(year, cohort, lca_group, age_group, ae_attendances) %>%
+  summarise(n = sum(ae_attendances)) |>
   left_join(
     esp,
     by = "age_group"
@@ -171,8 +171,7 @@ std_rate <- std_rate_df |>
     x = n,
     n = pop,
     stdpop = esp,
-    independent_events = FALSE,
-    eventfreq = ae_attendances,
+    independent_events = TRUE,
     ageband = age_group,
     multiplier = 1000
   )
