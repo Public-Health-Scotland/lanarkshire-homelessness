@@ -12,7 +12,8 @@ pacman::p_load(
   arrow,
   tidyverse,
   openxlsx2,
-  tidylog
+  tidylog,
+  lubridate
 )
 
 
@@ -196,6 +197,10 @@ matched <- matched %>%
   ) %>%
   select(-applications)
 # population weights (keep pop) applied to non-HL1 cohort only
+
+# filter out under 16s from general cohort
+matched <- matched %>%
+  filter_out(cohort == "non-HL1" & age < 16)
 
 # calculate LTC numbers
 matched <- matched %>%
