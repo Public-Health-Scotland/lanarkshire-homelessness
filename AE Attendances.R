@@ -76,14 +76,13 @@ indicator_lookup <- c(
 
 # read in data ------------------------------------------------------------
 
-matched <- read_parquet("/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Data/Linked Data/linked_data_2324_2026-09-28.parquet")
+matched <- read_parquet("/conf/LIST_analytics/Lanarkshire/HSCP/Homelessness/Source Linked Analysis 2026/Data/Linked Data/linked_data_2324_2026-11-09.parquet")
 
 ae_df <- matched |>
   select(year, age, gender, cohort, lca_group, hscp2019, pop, ae_attendances) |>
   mutate(
     age_group = case_when(
-      age <= 15 ~ "0-15",
-      between(age, 16, 25) ~ "16-25",
+      age <= 25 ~ "16-25", # technically 15-25 for hl1 pop, 16-25 for gen pop
       between(age, 26, 44) ~ "26-44",
       between(age, 45, 64) ~ "45-64",
       age >= 65 ~ "65+"
