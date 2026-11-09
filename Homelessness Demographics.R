@@ -178,8 +178,10 @@ HL1_AgeBand <- HL1_all %>%
 
 HL1_AgeBand <- HL1_AgeBand %>%
   mutate(Group = case_when(
-    age <= 17 ~ "0-17",
-    between(age, 18, 44) ~ "18-44",
+    age <= 15 ~ "0-15",
+    between(age, 16, 17) ~ "16-17",
+    between(age, 18, 25) ~ "18-25",
+    between(age, 26, 44) ~ "26-44",
     between(age, 45, 64) ~ "45-64",
     age >= 65 ~ "65+"
   ))
@@ -210,12 +212,13 @@ rm(HL1_AgeBandTot)
 # pop
 Ind_AgeBand <- Ind_all %>%
   mutate(Group = case_when(
-    age <= 17 ~ "0-17",
-    between(age, 18, 44) ~ "18-44",
+    age <= 15 ~ "0-15",
+    between(age, 16, 17) ~ "16-17",
+    between(age, 18, 25) ~ "18-25",
+    between(age, 26, 44) ~ "26-44",
     between(age, 45, 64) ~ "45-64",
     age >= 65 ~ "65+"
   ))
-
 Ind_AgeBand <- Ind_AgeBand %>%
   group_by(year, hl1_sending_lca, Group) %>%
   summarise(Population = n()) %>%
