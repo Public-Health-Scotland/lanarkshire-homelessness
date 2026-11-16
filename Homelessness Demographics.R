@@ -22,8 +22,8 @@ pacman::p_load(
 ###############################################
 # Create list of required variables
 VariablesNeeded <- c(
-  "year", "anon_chi", "age", "gender", "smrtype", "locality", "simd2020v2_sc_quintile",
-  "hl1_sending_lca", "record_keydate1"
+  "year", "anon_chi", "gender", "smrtype", "locality", "simd2020v2_sc_quintile",
+  "hl1_sending_lca", "record_keydate1", "dob"
 )
 
 
@@ -86,6 +86,12 @@ HL1_all <- HL1_all %>%
 
 HL1_all <- HL1_all %>%
   filter(hl1_sending_lca %in% c("North Lanarkshire", "South Lanarkshire"))
+
+### Calculate age at time of application
+HL1_all <- HL1_all %>%
+  mutate(
+    age = floor(as.numeric(record_keydate1 - dob) / 365)
+  )
 
 #### remove duplicates
 HL1_all <- distinct(HL1_all)
@@ -178,8 +184,10 @@ HL1_AgeBand <- HL1_all %>%
 
 HL1_AgeBand <- HL1_AgeBand %>%
   mutate(Group = case_when(
-    age <= 17 ~ "0-17",
-    between(age, 18, 44) ~ "18-44",
+    age <= 15 ~ "0-15",
+    between(age, 16, 17) ~ "16-17",
+    between(age, 18, 25) ~ "18-25",
+    between(age, 26, 44) ~ "26-44",
     between(age, 45, 64) ~ "45-64",
     age >= 65 ~ "65+"
   ))
@@ -210,12 +218,13 @@ rm(HL1_AgeBandTot)
 # pop
 Ind_AgeBand <- Ind_all %>%
   mutate(Group = case_when(
-    age <= 17 ~ "0-17",
-    between(age, 18, 44) ~ "18-44",
+    age <= 15 ~ "0-15",
+    between(age, 16, 17) ~ "16-17",
+    between(age, 18, 25) ~ "18-25",
+    between(age, 26, 44) ~ "26-44",
     between(age, 45, 64) ~ "45-64",
     age >= 65 ~ "65+"
   ))
-
 Ind_AgeBand <- Ind_AgeBand %>%
   group_by(year, hl1_sending_lca, Group) %>%
   summarise(Population = n()) %>%
