@@ -22,8 +22,8 @@ pacman::p_load(
 ###############################################
 # Create list of required variables
 VariablesNeeded <- c(
-  "year", "anon_chi", "age", "gender", "smrtype", "locality", "simd2020v2_sc_quintile",
-  "hl1_sending_lca", "record_keydate1"
+  "year", "anon_chi", "gender", "smrtype", "locality", "simd2020v2_sc_quintile",
+  "hl1_sending_lca", "record_keydate1", "dob"
 )
 
 
@@ -86,6 +86,12 @@ HL1_all <- HL1_all %>%
 
 HL1_all <- HL1_all %>%
   filter(hl1_sending_lca %in% c("North Lanarkshire", "South Lanarkshire"))
+
+### Calculate age at time of application
+HL1_all <- HL1_all %>%
+  mutate(
+    age = floor(as.numeric(record_keydate1 - dob) / 365)
+  )
 
 #### remove duplicates
 HL1_all <- distinct(HL1_all)
