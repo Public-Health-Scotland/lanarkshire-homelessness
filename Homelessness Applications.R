@@ -22,7 +22,11 @@ years <- c(2324)
 
 # load eps ----------------------------------------------------------------
 
-episode_vars <- c("year", "anon_chi", "age", "gender", "smrtype", "hl1_sending_lca", "record_keydate1", "hl1_property_type", "hl1_reason_ftm")
+episode_vars <- c(
+  "year", "anon_chi", "gender", "smrtype",
+  "hl1_sending_lca", "record_keydate1", "dob",
+  "hl1_property_type", "hl1_reason_ftm"
+)
 
 # read and combine HL1 applications from single year episode files
 
@@ -88,9 +92,12 @@ reason_lookup <- c(
 
 HL1_all <- HL1_all |>
   mutate(
+    age = floor(as.numeric(record_keydate1 - dob) / 365),
     age_group = case_when(
-      age <= 17 ~ "0-17",
-      between(age, 18, 44) ~ "18-44",
+      age <= 15 ~ "0-15",
+      between(age, 16, 17) ~ "16-17",
+      between(age, 18, 25) ~ "18-25",
+      between(age, 26, 44) ~ "26-44",
       between(age, 45, 64) ~ "45-64",
       age >= 65 ~ "65+"
     ),
