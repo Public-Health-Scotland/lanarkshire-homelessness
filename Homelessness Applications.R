@@ -120,7 +120,8 @@ age_gender_summary <- function(
   data,
   var,
   other_group = "hl1_sending_lca",
-  include_zero_counts = TRUE
+  include_zero_counts = TRUE,
+  age_exclude = "0-15" # excluded age groups kept in totals, but not disaggregated
 ) {
   groups <- list(
     character(),
@@ -158,7 +159,8 @@ age_gender_summary <- function(
           .before = all_of(var)
         )
     }) |>
-    bind_rows()
+    bind_rows() |>
+    filter_out(age_group %in% age_exclude)
 
   return(out)
 }
