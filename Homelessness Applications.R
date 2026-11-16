@@ -26,18 +26,28 @@ episode_vars <- c("year", "anon_chi", "age", "gender", "smrtype", "hl1_sending_l
 
 # read and combine HL1 applications from single year episode files
 
-HL1_all <- open_dataset(
-  str_glue(
-    "/conf/hscdiip/01-Source-linkage-files/source-episode-file-{yr}.parquet",
-    yr = years
-  )
+HL1_all <- map(
+  years,
+  \(yr){
+    filename <- paste0(
+      "/conf/hscdiip/01-Source-linkage-files/source-episode-file-",
+      yr,
+      ".parquet"
+    )
+    cat("Reading in ", filename, "\n")
+    open_dataset(filename) %>%
+      select(all_of(episode_vars)) %>%
+      filter(
+        smrtype == "HL1-Main",
+        hl1_sending_lca %in% c("S12000044", "S12000029")
+      ) %>%
+      collect() %>%
+      filter(record_keydate1 >= dmy(paste0("01-04-20", substr(yr, 1, 2))) &
+        record_keydate1 <= dmy(paste0("31-03-20", substr(yr, 3, 4))))
+  }
 ) %>%
-  select(all_of(episode_vars)) %>%
-  filter(
-    smrtype == "HL1-Main",
-    hl1_sending_lca %in% c("S12000044", "S12000029")
-  ) %>%
-  collect()
+  list_rbind()
+
 
 # Deduplicate
 
