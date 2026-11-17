@@ -22,22 +22,36 @@ years <- c(2324)
 
 # load eps ----------------------------------------------------------------
 
-episode_vars <- c("year", "anon_chi", "age", "gender", "smrtype", "hl1_sending_lca", "record_keydate1", "hl1_property_type", "hl1_reason_ftm")
+episode_vars <- c(
+  "year", "anon_chi", "gender", "smrtype",
+  "hl1_sending_lca", "record_keydate1", "dob",
+  "hl1_property_type", "hl1_reason_ftm"
+)
 
 # read and combine HL1 applications from single year episode files
 
-HL1_all <- open_dataset(
-  str_glue(
-    "/conf/hscdiip/01-Source-linkage-files/source-episode-file-{yr}.parquet",
-    yr = years
-  )
+HL1_all <- map(
+  years,
+  \(yr){
+    filename <- paste0(
+      "/conf/hscdiip/01-Source-linkage-files/source-episode-file-",
+      yr,
+      ".parquet"
+    )
+    cat("Reading in ", filename, "\n")
+    open_dataset(filename) %>%
+      select(all_of(episode_vars)) %>%
+      filter(
+        smrtype == "HL1-Main",
+        hl1_sending_lca %in% c("S12000044", "S12000029")
+      ) %>%
+      collect() %>%
+      filter(record_keydate1 >= dmy(paste0("01-04-20", substr(yr, 1, 2))) &
+        record_keydate1 <= dmy(paste0("31-03-20", substr(yr, 3, 4))))
+  }
 ) %>%
-  select(all_of(episode_vars)) %>%
-  filter(
-    smrtype == "HL1-Main",
-    hl1_sending_lca %in% c("S12000044", "S12000029")
-  ) %>%
-  collect()
+  list_rbind()
+
 
 # Deduplicate
 
@@ -78,9 +92,12 @@ reason_lookup <- c(
 
 HL1_all <- HL1_all |>
   mutate(
+    age = floor(as.numeric(record_keydate1 - dob) / 365),
     age_group = case_when(
-      age <= 17 ~ "0-17",
-      between(age, 18, 44) ~ "18-44",
+      age <= 15 ~ "0-15",
+      between(age, 16, 17) ~ "16-17",
+      between(age, 18, 25) ~ "18-25",
+      between(age, 26, 44) ~ "26-44",
       between(age, 45, 64) ~ "45-64",
       age >= 65 ~ "65+"
     ),
@@ -103,7 +120,8 @@ age_gender_summary <- function(
   data,
   var,
   other_group = "hl1_sending_lca",
-  include_zero_counts = TRUE
+  include_zero_counts = TRUE,
+  age_exclude = "0-15" # excluded age groups kept in totals, but not disaggregated
 ) {
   groups <- list(
     character(),
@@ -141,7 +159,8 @@ age_gender_summary <- function(
           .before = all_of(var)
         )
     }) |>
-    bind_rows()
+    bind_rows() |>
+    filter_out(age_group %in% age_exclude)
 
   return(out)
 }
